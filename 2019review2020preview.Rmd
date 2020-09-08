@@ -1,0 +1,539 @@
+---
+title: "2019 Review 2020 Preview"
+author: "Austin Ryan"
+date: "9/7/2020"
+output: 
+  html_document:
+    keep_md: true
+---
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE, 
+  message = FALSE, 
+  warning = FALSE, 
+  dpi = 300, 
+  tidy = 'styler')
+```
+#### 2019 Offensive Efficiency
+Green Bay was the 7th most efficient offense in terms of expected points added per play in 2019. The passing offense was the 8th highest rated while rushing was the 9th highest. 
+```{r echo = FALSE, warining = FALSE, message = FALSE}
+# Load libraries
+  library(tidyverse)
+  library(nflfastR)
+  library(ggrepel)
+  library(ggimage)
+  library(ggrepel)
+
+# Do not show scientific notation
+  options(scipen = 9999)
+```
+```{r echo = FALSE, warining = FALSE, message = FALSE}
+# Read in 2019 play-by-play data from nflfastR
+  pbp <- readRDS(url(
+    glue::glue("https://raw.githubusercontent.com/guga31bb/nflfastR-data/master/data/play_by_play_2019.rds")
+  ))
+```
+```{r echo = FALSE, warining = FALSE, message = FALSE}
+# Read in charted play-by-play data
+  df <- read_csv("gb_2019_full.csv",
+                 col_types = 
+                   cols(
+                     play_id = col_double(),
+                     old_game_id = col_character(),
+                     personnel = col_factor(),
+                     play_action = col_double()
+                   )
+                 )
+```
+```{r echo = FALSE, warining = FALSE, message = FALSE}
+# Save charted info as rds
+  saveRDS(df, "gb_2019_charted_info.rds")
+```
+```{r echo = FALSE, warining = FALSE, message = FALSE}
+# Join nflfastR data with charted data
+  pbp <- pbp %>% 
+    left_join(df, by = c("play_id", "old_game_id"))
+```
+```{r echo = FALSE, warining = FALSE, message = FALSE}
+# Filter to real plays, create variables for play number of drive and half
+  pbp <- pbp %>% 
+    filter(pass == 1 | rush == 1) %>% 
+    group_by(game_id, posteam, drive) %>% 
+    mutate(drive_play_num = seq_along(play)) %>% 
+    ungroup() %>% 
+    group_by(game_id, posteam, game_half) %>% 
+    mutate(half_play_num = seq_along(play)) %>% 
+    ungroup()
+```
+```{r echo = FALSE, warining = FALSE, message = FALSE}
+# Get rid of df
+  rm(df)
+```
+```{r echo = FALSE, warining = FALSE, message = FALSE}
+# Create binary variable for three wide
+  pbp <- pbp %>% 
+    mutate(
+      three_wide = ifelse(personnel == "11" |
+                       personnel == "20" |
+                       personnel == "10", 1, 0),
+      gb = ifelse(posteam == "GB", 1, 0)
+    )
+```
+```{r echo = FALSE, warining = FALSE, message = FALSE}
+# Summarize team epa per play and success rates for each team
+  ls <- pbp %>% 
+    filter(!is.na(epa) & down <= 4) %>% 
+    group_by(posteam) %>% 
+    summarize(
+      n_plays = sum(play),
+      n_pass = sum(pass),
+      n_rush = sum(rush),
+      epa_per_pass = sum(epa*pass)/n_pass,
+      epa_per_rush = sum(epa*rush)/n_rush,
+      epa_per_play = sum(epa)/n_plays,
+      success_per_pass = sum(pass*epa>0)/n_pass,
+      success_per_rush = sum(rush*epa>0)/n_rush) %>% 
+  left_join(teams_colors_logos, by = c("posteam" = "team_abbr"))
+```
+```{r echo = FALSE, warining = FALSE, message = FALSE}
+# Create plot passing & rushing epa per play
+  p01 <- ls %>% 
+    ggplot(aes(x = epa_per_rush, y = epa_per_pass)) +
+    geom_hline(yintercept = mean(ls$epa_per_pass), color = "red", linetype = "dashed", alpha = .5) +
+    geom_vline(xintercept = mean(ls$epa_per_rush), color = "red", linetype = "dashed", alpha = .5) +
+    geom_image(aes(image = team_logo_espn), asp = 16/9) +
+    stat_smooth(geom='line', alpha=0.5, se=FALSE, method='lm') +
+    labs(x = "EPA per Rush",
+         y = "EPA per Dropback",
+         title = "Offensive Efficiency | 2019",
+         caption = "Data: @nflfastR") +
+    theme_bw() +
+    theme(
+      aspect.ratio = 9 / 16,
+      plot.title = element_text(size = 14, hjust = 0.5, face = "bold")
+    ) +
+    scale_y_continuous(breaks = scales::pretty_breaks(n = 10)) +
+    scale_x_continuous(breaks = scales::pretty_breaks(n = 10))
+```
+```{r, dpi=300, echo = FALSE, warining = FALSE, message = FALSE}
+p01
+```
+
+#### 2019 Defensive Efficiency 
+Defensively, Green Bay finished in the middle of the pack in terms of expected points allowed per play. They finished 7th against the pass but 31st against the run. 
+```{r echo = FALSE, warining = FALSE, message = FALSE}
+# Summarize team epa per play and success rates for each defense
+  ls02 <- pbp %>% 
+    filter(!is.na(epa) & !is.na(defteam) & down <= 4) %>% 
+    group_by(defteam) %>% 
+    summarize(
+      n_plays = sum(play),
+      n_pass = sum(pass),
+      n_rush = sum(rush),
+      epa_per_pass = sum(-epa*pass)/n_pass,
+      epa_per_rush = sum(-epa*rush)/n_rush,
+      epa_per_play = sum(-epa)/n_plays,
+      success_per_pass = sum(pass*epa>0)/n_pass,
+      success_per_rush = sum(rush*epa>0)/n_rush) %>% 
+  left_join(teams_colors_logos, by = c("defteam" = "team_abbr"))
+```
+```{r echo = FALSE, warining = FALSE, message = FALSE}
+# Create plot passing & rushing epa per play
+  p02 <- ls02 %>% 
+    ggplot(aes(x = epa_per_rush, y = epa_per_pass)) +
+    geom_hline(yintercept = mean(ls02$epa_per_pass), color = "red", linetype = "dashed", alpha = .5) +
+    geom_vline(xintercept = mean(ls02$epa_per_rush), color = "red", linetype = "dashed", alpha = .5) +
+    geom_image(aes(image = team_logo_espn), asp = 16/9) +
+    stat_smooth(geom='line', alpha=0.5, se=FALSE, method='lm') +
+    labs(x = "EPA per Rush",
+         y = "EPA per Dropback",
+         title = "Defensive Efficiency | 2019",
+         caption = "Data: @nflfastR") +
+    theme_bw() +
+    theme(
+      aspect.ratio = 9 / 16,
+      plot.title = element_text(size = 14, hjust = 0.5, face = "bold")
+    ) +
+    scale_y_continuous(breaks = scales::pretty_breaks(n = 10)) +
+    scale_x_continuous(breaks = scales::pretty_breaks(n = 10))
+```
+```{r, dpi=300, echo = FALSE, warining = FALSE, message = FALSE}
+p02
+```
+
+#### 2020 Regression
+In 2020 the number 1 seed is more important than ever. Seven teams will make the playoffs from each conference and only one team from each side will earn a first-round bye. In order for Green Bay to be in contention for the 1 seed they will likely need to win 13 games again.
+
+The offensive efficiency metrics we saw are respectable for the first year of the Matt LaFleur era. The defensive efficiency metrics are fine. Being better against the pass is much more important than the run. However, these are not elite level efficiency numbers you typically see from 13 win teams that make it to the conference championship. 
+
+[Earlier this summer](https://www.opensourcefootball.com/posts/2020-08-23-exploring-wins-with-nflfastr/) I used expected points added per play metrics to develop an expected wins metric. Using this methodology I found Green Bay overperformed their expected wins by 2.8 wins, the most of any team in 2019, and the 13th most since 1999. There were 25 teams who over performed by more than 2.5 wins from 1999 to 2018 and those teams lost 2.3 games more in the next season. 
+
+Additionally, the Packers were 8-1 in games decided by eight points or less. [Football Outsiders pythagorean wins](https://en.wikipedia.org/wiki/Pythagorean_expectation#:~:text=The%20formula%20is%20used%20with,referred%20to%20as%20Pythagorean%20wins.) uses a teams points for and points against to develop an expected number of wins. With a regular season point differential of +63 points he 2019 Packers outperformed their pythagorean wins expectation by 3.3 wins. This is the 3rd most ever in the nflfastR library that dates back to 1999. Additionally, the team they beat to get to the conference championship produced a season long point differential of +7 points and outperformed their pythagorean wins by 2.8 which is the 11th most since 1999.
+
+In order for the Packers to come out as a team with 13 expected wins in the type of model I used there has to be some significant improvements in 2020. A top 7 passing offense sounds nice but in 2020 the passing offense was more similar to the 18th through 20th ranked Browns, Cardinals, and Bills than it was to the top ranked Chiefs and Ravens. Holding all else equal the passing offense would have to jump to the Chiefs/Ravens level to grade out as a 13 expected win team. This is quite the leap forward, however, we have seen significant improvements in early years of previous Shanahan, McVay, and LaFleur offenses. 
+
+```{r echo = FALSE, warning = FALSE, message=FALSE}
+# This code chunk reads all play-by-play data from the nflfastR github repo
+
+# Create function to read RDS from github
+  read_pbp_rds <- function(year){
+    readRDS(url(glue::glue('https://raw.githubusercontent.com/guga31bb/nflfastR-data/master/data/play_by_play_{year}.rds')))
+  }
+
+# Read play by play date from 1999 to 2019
+  pbp2 <- 1999:2019 %>% 
+    purrr::map_dfr(read_pbp_rds)
+```
+```{r echo = FALSE, warning = FALSE, message=FALSE}
+# This code chunk creates a dataframe that stores win, loss, tie, point differential info for all regular season games
+
+  # Create outcomes dataframe
+  outcomes <- pbp2 %>%
+    filter(week <= 17) %>% 
+    group_by(season, game_id, home_team) %>%
+    summarize(
+      home_win = if_else(sum(result) > 0, 1, 0),
+      home_tie = if_else(sum(result) == 0, 1, 0),
+      home_diff = last(result),
+      home_pts_for = last(home_score),
+      home_pts_against = last(away_score)
+    ) %>%
+    group_by(season, home_team) %>%
+    summarize(
+      home_games = n(),
+      home_wins = sum(home_win),
+      home_ties = sum(home_tie),
+      home_diff = sum(home_diff),
+      home_pts_for = sum(home_pts_for),
+      home_pts_against = sum(home_pts_against)
+    ) %>%
+    ungroup() %>%
+    left_join(
+      # away games
+      pbp2 %>%
+        filter(week <= 17) %>%
+        group_by(season, game_id, away_team) %>%
+        summarize(
+          away_win = if_else(sum(result) < 0, 1, 0),
+          away_tie = if_else(sum(result) == 0, 1, 0),
+          away_diff = last(result)*-1,
+          away_pts_for = last(away_score),
+          away_pts_against = last(home_score)
+        ) %>%
+        group_by(season, away_team) %>%
+        summarize(
+          away_games = n(),
+          away_wins = sum(away_win),
+          away_ties = sum(away_tie),
+          away_diff = sum(away_diff),
+          away_pts_for = sum(away_pts_for),
+          away_pts_against = sum(away_pts_against)
+        ) %>%
+        ungroup(),
+      by = c("season", "home_team" = "away_team")
+    ) %>%
+    rename(team = "home_team") %>%
+    mutate(
+      games = home_games + away_games,
+      wins = home_wins + away_wins,
+      losses = games - wins,
+      ties = home_ties + away_ties,
+      win_percentage = (wins + 0.5 * ties) / games,
+      point_diff = home_diff + away_diff,
+      points_for = home_pts_for + away_pts_for,
+      points_against = home_pts_against + away_pts_against,
+      pythag_wins = (points_for^2.37 / (points_for^2.37 + points_against^2.37))*16,
+      pythag_var = wins - pythag_wins
+    ) %>%
+    select(
+      season, team, games, wins, losses, ties, win_percentage, point_diff, points_for, points_against, pythag_wins, pythag_var
+    )
+```
+```{r echo = FALSE, warning = FALSE, message=FALSE}
+# This code chunk creates a dataframe that stores season long offensive and defensive stats
+
+# Create metrics dataframe
+  metrics <- pbp2 %>% 
+    filter(
+      week <= 17 & pass == 1 & !is.na(epa) | 
+      week <= 17 & rush == 1 & !is.na(epa)
+      ) %>% 
+    group_by(season, posteam) %>% 
+      summarize(
+        n_pass = sum(pass),
+        n_rush = sum(rush),
+        pass_yards = sum(yards_gained*pass, na.rm = TRUE),
+        rush_yards = sum(yards_gained*rush, na.rm = TRUE),
+        epa_per_pass = sum(epa*pass)/n_pass,
+        epa_per_rush = sum(epa*rush)/n_rush,
+        success_per_pass = sum(pass*epa>0)/n_pass,
+        success_per_rush = sum(rush*epa>0)/n_rush,
+        y_per_pass = sum(yards_gained*pass, na.rm = TRUE)/n_pass,
+        y_per_rush = sum(yards_gained*rush, na.rm = TRUE)/n_rush
+      ) %>% 
+    left_join(
+      pbp2 %>%
+        filter(
+      week <= 17 & pass == 1 & !is.na(epa) | 
+      week <= 17 & rush == 1 & !is.na(epa)
+      ) %>% 
+    group_by(season, defteam) %>% 
+      summarize(
+        def_n_pass=sum(pass),
+        def_n_rush=sum(rush),
+        def_pass_yards = sum(yards_gained * pass, na.rm = TRUE),
+        def_rush_yards = sum(yards_gained * rush, na.rm = TRUE),
+        def_epa_per_pass=sum(-epa*pass)/def_n_pass,
+        def_epa_per_rush=sum(-epa*rush)/def_n_rush,
+        def_success_per_pass=sum(pass*epa>0)/def_n_pass,
+        def_success_per_rush=sum(rush*epa>0)/def_n_rush,
+        def_y_per_pass = sum(yards_gained*pass, na.rm = TRUE)/def_n_pass,
+        def_y_per_rush = sum(yards_gained*rush, na.rm = TRUE)/def_n_rush
+      ),
+    by = c("season", "posteam" = "defteam")
+    ) %>% 
+    rename(team = "posteam") %>% 
+    select(-n_pass, -n_rush, -def_n_pass, -def_n_rush)
+```
+```{r echo = FALSE, warning = FALSE, message=FALSE}
+# Create dataframe for season long outcomes and stats
+  df <- outcomes %>% 
+    left_join(metrics, by = c("season", "team")) %>% 
+  mutate(id = paste(season, team))
+```
+```{r echo = FALSE, warning = FALSE, message=FALSE}
+df2 <- df %>% 
+  filter(id == "2015 ATL" | id == "2016 ATL" | id == "2016 LA" |
+           id == "2017 LA" | id == "2018 LA" |
+           id == "2017 SF" | id == "2018 SF" | id == "2019 SF") %>% 
+  left_join(teams_colors_logos, by = c("team" = "team_abbr"))
+```
+```{r echo = FALSE, warning = FALSE, message=FALSE}
+p03 <- df2 %>% 
+  ggplot(aes(x = epa_per_pass, y = as.character(season))) +
+  geom_bar(stat = "identity", aes(color = id, fill = id), show.legend = FALSE) +
+  #geom_image(aes(image = team_logo_espn), size = .1, asp = 16/9) +
+  scale_color_manual(values = df2$team_color2) +
+  scale_fill_manual(values = df2$team_color) +
+  labs(x = "EPA per Play",
+       y = "season",
+       caption = "Data from @nflfastR") +   theme(
+    panel.background = element_rect(fill = "white",
+                                    color = "black",
+                                    size = 0.5,
+                                    linetype = "solid"),
+    strip.text.x = element_text(size = 12,
+                                        face = "bold"),
+  ) +
+  facet_wrap(vars(team_name), ncol = 1, scales = "free_y")
+```
+```{r dpi = 300, echo = FALSE, warining = FALSE, message = FALSE}
+p03
+```
+Another path to a 13 win season is one where the defense makes a significant jump forward. The team with the previous record for lowest point differential in a 13 win season was the 1999 Titans who won 13 games with a point differential of 68 points (five more points than the 2019 Packers). After adding Javon Kearse they finished as the 16th best passing defense since 1999 in terms of expected points allowed per play and won 13 games again in 2000. In order for the Packers to be a 13 win team in 2020 with no offensive imporovement the defense will need to be as good as the 2009 Rex Ryan and Darrelle Revis lead Jets squad that Mike Pettine was a part of. 
+
+#### First 15 Plays
+```{r echo = FALSE, warning = FALSE, message=FALSE}
+first_15 <- pbp %>% 
+  filter(!is.na(epa) & half_play_num <= 15 & game_half != "Overtime") %>% 
+  mutate(
+    half1 = ifelse(game_half == "Half1", 1, 0),
+    half2 = ifelse(game_half == "Half2", 1, 0)
+  ) %>% 
+  group_by(posteam) %>% 
+  summarize(
+    n_plays = sum(play),
+    h1 = sum(half1*epa)/n_plays,
+    h2 = sum(half2*epa)/n_plays) %>% 
+  left_join(teams_colors_logos, by = c("posteam" = "team_abbr"))
+```
+```{r echo = FALSE, warning = FALSE, message=FALSE}
+p05 <- first_15 %>% 
+  ggplot(aes(x = h1, y = h2)) +
+  geom_hline(yintercept = mean(first_15$h2), color = "red", linetype = "dashed", alpha = .5) +
+  geom_vline(xintercept = mean(first_15$h1), color = "red", linetype = "dashed", alpha = .5) +
+  geom_image(aes(image = team_logo_espn), asp = 16/9) +
+  stat_smooth(geom='line', alpha=0.5, se=FALSE, method='lm') +
+  labs(x = "1st half",
+       y = "2nd half",
+       title = "First 15 Plays | 2019 EPA per Play",
+       caption = "Data: @nflfastR") +
+  theme_bw() +
+  theme(
+    aspect.ratio = 9 / 16,
+    plot.title = element_text(size = 14, hjust = 0.5, face = "bold")
+  ) +
+  scale_y_continuous(breaks = scales::pretty_breaks(n = 10)) +
+  scale_x_continuous(breaks = scales::pretty_breaks(n = 10))
+```
+This could very well be nothing but the Green Bay offense was at its best in the first 15 plays of each half. Or maybe LaFleur is a master at planning these plays. 
+```{r echo = FALSE, warining = FALSE, message = FALSE}
+p05
+```
+
+#### EPA by Personnel
+The Packers were more efficient running out of personnel sets with three or more wide receivers in 2019. Passing efficiency was slightly better with two or fewer wide receivers although the difference was negligible.
+```{r echo = FALSE, warning = FALSE, message=FALSE}
+gb_sum <- pbp %>% 
+  filter(posteam == "GB" & !is.na(epa) & !is.na(personnel)) %>% 
+  group_by(three_wide, pass) %>% 
+  summarize(
+      n_plays = sum(play),
+      epa_per_play = sum(epa)/n_plays,
+      pa_rate = sum(play_action)/n_plays) %>% 
+  arrange(-n_plays)
+```
+```{r echo = FALSE, warning = FALSE, message=FALSE}
+p06 <- gb_sum %>% 
+  ggplot(aes(x = epa_per_play, y = pass, fill = as.factor(pass), color = as.factor(pass))) +
+  geom_bar(stat = "identity") +
+  scale_fill_manual(values = c("#FFB612", "#203731"), labels = c("Rush", "Pass")) +
+  scale_color_manual(values = c("#203731", "#FFB612"), labels = c("Rush", "Pass")) +
+  
+  scale_x_continuous(breaks = seq(-.10, .20, by = .05)) +
+  labs(x = "EPA per Play",
+       y = element_blank(),
+       caption = "Data from @nflfastR") +
+  theme(
+    panel.background = element_rect(fill = "white",
+                                            color = "#203731",
+                                            size = 0.5,
+                                            linetype = "solid"),
+    strip.background = element_rect(fill = "#203731"),
+    strip.text.x = element_text(size = 12,
+                                        face = "bold",
+                                        color = "#FFB612"),
+    axis.text.y = element_blank(),
+    legend.title = element_blank(),
+    legend.position = "bottom"
+  ) +
+  facet_wrap(vars(three_wide), ncol = 1, labeller = labeller(
+    three_wide = c("0" = "2 or fewer WR", "1" = "3 or more WR")
+  ))
+```
+```{r dpi = 300, echo = FALSE, warining = FALSE, message = FALSE}
+p06
+```
+```{r echo = FALSE, warning = FALSE, message=FALSE}
+gb_sum02 <- pbp %>% 
+  filter(posteam == "GB" & !is.na(epa) & !is.na(personnel) & pass == 1) %>% 
+  group_by(three_wide, play_action) %>% 
+  summarize(
+      n_plays = sum(play),
+      epa_per_play = sum(epa)/n_plays,
+      qb_epa = sum(qb_epa)/n_plays) %>% 
+  arrange(-n_plays)
+```
+Overall passing efficiency out of heavier personnel was similar to 11 personnel. However, the play-action game was much more effective out of heavier personnel.A fair amount of the Packer successful shot plays came from play-action dropbacks with two or fewer wide receivers. Green bay ran play-action 28% of the time in sets with two or fewer receivers as opposed to 12% of the time with three or more wideouts.
+```{r echo = FALSE, warning = FALSE, message=FALSE}
+p07 <- gb_sum02 %>% 
+  ggplot(aes(x = qb_epa, y = play_action, fill = as.factor(play_action), color = as.factor(play_action))) +
+  geom_bar(stat = "identity") +
+  scale_fill_manual(values = c("#FFB612", "#203731"), labels = c("Non-PA Dropback", "PA Dropback")) +
+  scale_color_manual(values = c("#203731", "#FFB612"), labels = c("Non-PA Dropback", "PA Dropback")) +
+  
+  scale_x_continuous(breaks = seq(-.10, .20, by = .05)) +
+  labs(x = "EPA per Play",
+       y = element_blank(),
+       caption = "Data from @nflfastR") +
+  theme(
+    panel.background = element_rect(fill = "white",
+                                            color = "#203731",
+                                            size = 0.5,
+                                            linetype = "solid"),
+    strip.background = element_rect(fill = "#203731"),
+    strip.text.x = element_text(size = 12,
+                                        face = "bold",
+                                        color = "#FFB612"),
+    axis.text.y = element_blank(),
+    legend.title = element_blank(),
+    legend.position = "bottom"
+  ) +
+  facet_wrap(vars(three_wide), ncol = 1, labeller = labeller(
+    three_wide = c("0" = "2 or fewer WR", "1" = "3 or more WR")
+  ))
+```
+```{r dpi = 300, echo = FALSE, warining = FALSE, message = FALSE}
+p07
+```
+
+#### Top Plays
+You may have heard the Packers did not add any receivers in the 2020 NFL Draft. Instead they opted to draft a running back in the 2nd and a full back / tight end in the 3rd. As a result we should expect the Packers to run less 11 personnel and more heavier sets in 2020. On a positive note, play-action dropbacks from heavier personnel were some of the Packers most efficient plays in 2019. Here are some of the top 2019 play-action dropbacks from two or fewer wide receiver sets.
+
+![video](09.05.20_gb_play_action.mp4)
+
+#### Receiving Corps Changes
+```{r echo = FALSE, warning = FALSE, message=FALSE}
+targets <- pbp %>% 
+  filter(posteam == "GB" & !is.na(receiver_player_name)) %>% 
+  group_by(receiver_player_name) %>% 
+  summarize(
+    targets = sum(pass),
+    cpoe = mean(cpoe, na.rm = T),
+    epa = mean(epa, na.rm = T)
+  )
+```
+```{r echo = FALSE, warning = FALSE, message=FALSE}
+p08 <- targets %>% 
+  filter(targets >= 5) %>% 
+  ggplot(aes(x = cpoe, y = targets)) +
+  geom_point(aes(size = targets), alpha = .5, color = "#FFB612", show.legend = F) +
+  geom_text_repel(aes(label = receiver_player_name), color = "white", force = 1, point.padding = .1, segment.size = 0.2) +
+  labs(x = "CPOE",
+       y = "Targets",
+       title = "2019 Targeted Receivers",
+       caption = "Data from @nflfastR") +
+  theme(plot.title = element_text(size = 16,
+                                  face = "bold",
+                                  hjust = .5,
+                                  color = "white"),
+        panel.background = element_rect(fill = "#203731",
+                                        color = "#FFB612"),
+        plot.background = element_rect(fill = "#203731",
+                                        color = "#FFB612"),
+        panel.grid = element_blank(),
+              axis.text.y = element_text(color = "white", size = 10),
+              axis.title.y = element_text(color = "white", size = 12),
+              axis.text.x = element_text(color = "white", size = 10),
+              axis.title.x = element_text(color = "white", size = 12),
+        plot.caption = element_text(size = 10, 
+                                          color = "white"))
+```
+```{r dpi = 300, echo = FALSE, warning = FALSE, message=FALSE}
+p08
+```
+Jimmy Graham and Geronimo Allison earned over 20% of the targets in 2019. They leave behind over 120 vacated. We can see below that passes thrown Graham and Allison weren't completed at a rate any more frequently than we would expect given the down, distance, air yards, and pass location. Some combination of Allen Lazard, Marques Valdes-Scantling, and Tyler Ervin will likely absorb Allisons targets in 2020. In 2019 passes thrown to Lazard were completed about 9% more frequently than we would expect given while passes thrown to MVS were completed about 8% less frequently than we would expect. 
+
+We haven't got to see much from Jace Sternberger yet. Sternberger went one spot ahead of Terry McLaurin in the 2019 draft and could inherit a good portion of Graham's targets in 2020 along with Robert Tonyan. Ahead of the 2019 NFL Draft Greg Cosell surprised me when he seemed to like Sternberger just as much as the top two tight end prospects, TJ Hockenson and Noah Fant. On the Ross Tucker Football Podcast Cosell said Sternberger had similarities to Travis Kelce in terms of receiving movement for a tight end and is someone who can impact the passing game from multiple formation locations and is just scratching the surface of what he can do as a dynamic weapon. 
+```{r echo = FALSE, warning = FALSE, message=FALSE}
+routes <- read_csv("graham_allison_routes.csv")
+```
+```{r echo = FALSE, warning = FALSE, message=FALSE}
+p09 <- routes %>% 
+  ggplot(aes(x = x_coord, y = y_coord)) +
+  stat_density2d(aes(fill = stat(ndensity)), geom = "raster", contour = FALSE,
+                 show.legend = FALSE) +
+  scale_fill_distiller(palette = 'RdYlBu') +
+  coord_fixed() +
+  theme_bw() +
+  annotate("text", 0, 0, vjust = -0.5, label = "LOS") +
+  labs(x = "Field Width", y = "Field Length",
+       title = "Route Density on Targeted Routes",
+       caption = "Data from @NextGenStats Made Possible by @sarahsauceboss & @ChiefsAnalytics") +
+  scale_x_continuous(breaks = seq(-30, 30, by = 10), limits = c(-30,30)) +
+  scale_y_continuous(breaks = seq(-10, 55, by = 10), limits = c(-10, 55)) +
+  scale_color_manual(labels = c("No", "Yes"), values = c("0" = "red", "1" = "blue")) +
+  geom_hline(color = "black", yintercept = seq(-10, 50, by = 10)) +
+  geom_vline(color = "black", xintercept = -6.17, lty = "dashed") +
+  geom_vline(color = "black", xintercept = 6.17, lty = "dashed") +
+  theme(strip.text.x = element_text(size = 16, face = "bold"),
+        plot.title = element_text(size = 16, hjust = 0.5),
+        plot.subtitle = element_text(size = 14, hjust = 0.5),
+        plot.caption = element_text(size = 12),
+        axis.title = element_text(size = 12),
+        axis.text = element_text(size = 14)) +
+  facet_wrap(name ~.)
+```
+```{r dpi = 300, echo = FALSE, warning = FALSE, message=FALSE}
+p09
+```
