@@ -52,7 +52,7 @@ The Packers were more efficient running out of personnel sets with three or more
 
 ![](2019review2020preview_files/figure-html/unnamed-chunk-27-1.png)<!-- -->
 
-Overall passing efficiency out of heavier personnel was similar to 11 personnel. However, the play-action game was much more effective out of heavier personnel.A fair amount of the Packer successful shot plays came from play-action dropbacks with two or fewer wide receivers. Green bay ran play-action 28% of the time in sets with two or fewer receivers as opposed to 12% of the time with three or more wideouts.
+Overall passing efficiency out of heavier personnel was similar to 11 personnel. However, the play-action game was much more effective out of heavier personnel. A fair amount of the Packer successful shot plays came from play-action dropbacks with two or fewer wide receivers. Green bay ran play-action 28% of the time in sets with two or fewer receivers as opposed to 12% of the time with three or more wideouts.
 
 ![](2019review2020preview_files/figure-html/unnamed-chunk-30-1.png)<!-- -->
 
